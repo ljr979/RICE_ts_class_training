@@ -35,17 +35,24 @@ This contains the OUTPUT from each of the scripts in the src folder
 # Steps to train a new model (taken for each of the four models)
 
 0_Training_model_scripts
-1- collect data 
-2- clean trajectories: this makes them into a format which is appropriate for labelling
-3 - prepare data for labelling
+0- collect data 
+1- clean trajectories: this makes them into a format which is appropriate for labelling
+2 - prepare data for labelling
 - this is where the  molecules need to be labelled manually in any way you prefer: this program plots the trajectories and allows you to classify them manually. Then, it will save the labelled trajectories for handling in python, and training the model
-5- train model
-6- Validate model- this produces an ROC/AUC curve and plots comparisons for those that were not predicted correctly. 
+3- train model
+4- Validate model- this produces an ROC/AUC curve and plots comparisons for those that were not predicted correctly. 
 
+important note: the above scripts are the breakdown of developing the training pipeline. each of these are implemented within A_training- this is a pipeline which runs through each of the above scripts as functions. However, they can each be run separately when troubleshooting or needing to use only a portion of the pipeline. 
+MAIN TRAINING:
+0_collect_data.py
+1_clean_trajectories.py
+then you can run...
+A_training.py - this has an if statement which stops and lets you label your trajectories. then goes on to train the model on the data once you have done so. It saves the best model after training. Importantly, this whole pipeline NORMALISES trajectories. This is because the non-normalising approach was least effective. 
+and finally, 4_validate_model.py (generate ROC/AUC curves)
 
 
 1_Optimising_generalisability
-in here, the scripts are for preparing the data (i.e., manipulating the large, collated, manually labelled raw data so that only subsets required are used for training such as short only, long only etc.) and then re-training the new model / transferring weights
+in here, the scripts are for preparing the data (i.e., manipulating the large, collated, manually labelled raw data so that only subsets required are used for training such as short only, long only etc.) and then re-training the new model / transferring weights. In reality, a and b are is built into A_training pipeline, and validation but this details how this was done, and if needed, can do this to data that doesn't need dto pass through the entire pipeline. Furthermore, the scripts in 0_Training_model_scripts are more general, whilst these describe exactly what was done in this work, from a large body of trajectories.
 
 1_a_Model_2_normalising
 1_b_Model_3_add_noise

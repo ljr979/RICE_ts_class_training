@@ -4,17 +4,16 @@ import numpy as np
 from loguru import logger
 import glob
 #cleans up individual trajectories which were put into a folder in this repository by the 0_collect_data script. as such, the output of that script is the input folder here.
-
-input_folder = 'Results/collected_data/'
+#need to run this for each experiment within collected_data, so make that the first variable (needs to match the string that is the name of your experiment)
+Experiment_num='Exp1'
+input_folder = f'Results/training_model/collected_data/{Experiment_num}/'
 #This output will be where the cleaned up dataframe with all trajectories will save
-output_folder = 'Results/training_model/clean_data/'
+output_folder = f'Results/training_model/clean_data/'
 
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
-
-
-def compile_trajectories(folder_list, input_folder, output_folder):
+def compile_trajectories(folder_list, input_folder, output_folder, Experiment_num):
     #now loop through those folders  and pull out the CSV files (trajectories files) in each folder and put them in a dataframe with new columns to keep data about treatment 
     all_trajectory_data = []
     for folder in folder_list:
@@ -52,7 +51,7 @@ def compile_trajectories(folder_list, input_folder, output_folder):
     smooshed_trajectories['colocalisation'] = smooshed_trajectories['colocalisation'].str.capitalize()
 
     #now need to output this file as the original data before renaming the molecules
-    smooshed_trajectories.to_csv(f'{output_folder}/{folder}_initial_compiled_data.csv')
+    smooshed_trajectories.to_csv(f'{output_folder}/{Experiment_num}_{folder}_initial_compiled_data.csv')
     return smooshed_trajectories
 
 #find the folders withinthe input folder. this should be the 'proteins' which you defined in the previous script, which have another folder beneath them.
@@ -69,6 +68,6 @@ smooshed_trajectories['molecule_number'] = [f'{metadata}_{x}' for x, metadata in
 timeseries_data = ['molecule_number'] + [col for col in smooshed_trajectories.columns.tolist() if type(col) == int]
 timeseries_data = smooshed_trajectories[timeseries_data].copy()
 #now save! for labelling
-timeseries_data.to_csv(f'{output_folder}cleaned_data.csv')
+timeseries_data.to_csv(f'{output_folder}{Experiment_num}_cleaned_data.csv')
 
 
