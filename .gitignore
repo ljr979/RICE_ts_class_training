@@ -1,0 +1,13 @@
+
+
+.vscode/settings.json
+Results/*
+Archive/*
+
+
+*.pyc
+
+data/*
+
+
+Models/*

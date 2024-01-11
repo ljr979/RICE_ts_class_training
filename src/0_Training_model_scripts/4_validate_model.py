@@ -1,0 +1,204 @@
+import os
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from tensorflow import keras
+from loguru import logger
+import seaborn as sns
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from dl4tsc.utils.constants import ARCHIVE_NAMES, CLASSIFIERS, ITERATIONS
+from dl4tsc.utils.utils import calculate_metrics
+from loguru import logger
+from sklearn import preprocessing
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV, train_test_split
+from tensorflow import keras
+from sklearn.preprocessing import MinMaxScaler
+#from src.python_photobleaching.analysis import clean_trajectories
+from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_auc_score
+
+from random import sample
+from collections import Counter
+from sklearn.datasets import make_classification
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.pipeline import Pipeline
+from matplotlib import pyplot
+from numpy import where
+
+
+
+#EVERYTHING ABOVE HERE IS FOR BUILDING THE NEW MODEL ARCHITECTURE: MAYBE DON'T NEED? COULD MAYBE IMPORT FROM MY TRAINING SCRIPT? ASK DEZ
+
+
+def prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=False):
+
+    time_columns = [int(col) for col in time_data.columns.tolist()]
+    #noise_50 keyword results in all trajectories bcoming the same length of time columns, then filling any missing values with random noise generated from the last 50 values of the trajectory. Then it spits out time_data with these filled values
+    if x_norm == 'noise_50':
+        if max(time_columns) != 1000:
+
+            new_columns = [str(timepoint) for timepoint in range(max(time_columns)+1, 1000)]
+            raw_data[new_columns] = np.nan
+        #this chunk melts trajectories and turns it into 'data'. then data is grouped and the max value in thaat trajectory is found and turned into a new datafram called max_times. we then make a dictionary out of the molecule number (key) and the max time (value) and map this onto the original dataframe (data) to make a new column to say how long they are. 
+        data=pd.melt(raw_data, id_vars=['molecule_number', 'label'], value_vars=[col for col in raw_data.columns.tolist() if col not in ['molecule_number', 'label']], var_name='time', value_name='intensity')
+        #data=data.dropna(subset=['intensity'])
+        #now to find the last 50 intensity values and average + SD of each molecule intensity. this results in the new DF being made with both SD and mean for every single molecule, which we can use to make a normal distribution to draw from when 
+        filled_data=[]
+        for group, df in data.groupby(['molecule_number', 'label']):
+            missing_values = df[df['intensity'].isnull()]
+            complete_values = df[~df['intensity'].isnull()]
+            last_fifty_av = complete_values.tail(50).mean()['intensity']
+            last_fifty_sd = complete_values.tail(50).std()['intensity']
+            missing_values['intensity'] = np.random.normal(last_fifty_av, last_fifty_sd, len(missing_values['intensity']))
+            df = pd.concat([complete_values, missing_values])
+            filled_data.append(df)
+
+        raw_data=pd.concat(filled_data)
+
+        #now to unmelt the dataframe and save it to csv to be imported in my training script :) 
+        raw_data = raw_data.set_index(['molecule_number', 'label', 'time'])['intensity'].unstack().reset_index()
+        time_data = raw_data[[col for col in raw_data.columns.tolist() if col not in ['molecule_number', 'label']]]
+
+        if len(time_data.shape) == 2:  # if univariate
+            # add a dimension to make it multivariate with one dimension 
+            time_data = time_data.values.reshape((time_data.shape[0], time_data.shape[1], 1))
+
+        #fillNAs takes the y normalised trajectories, and fills the empty spots with NAN'S which isn't going to be good but needed for validation. spits out time_data ready for prediction with NAns 
+    elif x_norm == 'fillNAs': 
+        if max(time_columns) != 1000:
+
+            new_columns = [str(timepoint) for timepoint in range(max(time_columns)+1, 1000)]
+            time_data[new_columns] = np.nan
+            
+        if len(time_data.shape) == 2:  # if univariate
+            # add a dimension to make it multivariate with one dimension 
+            time_data = time_data.values.reshape((time_data.shape[0], time_data.shape[1], 1))
+
+     
+
+    #this one results in the data just staying as is! not adusting the x axis AT ALL. USe this version when you've created a new model with the short weights and new shape , or if you have the correct shape for an existing model already and don't need to change the x axis at all :) 
+
+    if len(time_data.shape) == 2:  # if univariate
+        # add a dimension to make it multivariate with one dimension 
+        time_data = time_data.values.reshape((time_data.shape[0], time_data.shape[1], 1))
+    
+    return time_data
+
+
+def predict_labels(time_data, model_path, raw_data, output_folder, x_norm=False):
+    # evaluate best model on new dataset
+    x_predict = prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=x_norm)
+    input_shape = x_predict.shape[1:]
+    model = keras.models.load_model(model_path)
+    y_pred = model.predict(x_predict)
+    y_pred = np.argmax(y_pred, axis=1)
+    # Add labels back to original dataframe
+    time_data['label'] = y_pred
+    return time_data
+
+def ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm=False):
+    """
+    This function is currently (20211020) just copied predict_labels with a change. need to run this function as the validation at the end of the script, after the predict labels script etc. to plot validation for each model.
+    """
+    x_predict = prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=x_norm)
+    
+    input_shape = x_predict.shape[1:]
+    model = keras.models.load_model(model_path)
+    #returns probabilities to feed into the ROC/AUC graphing bit
+    y_pred = model.predict(x_predict)
+
+    return y_pred
+
+def plot_ROC_AUC(raw_data, y_pred, output_folder):
+    fpr = {}
+    tpr = {}
+    thresh ={}
+
+    n_class = 3
+
+    for i in range(n_class):    
+        fpr[i], tpr[i], thresh[i] = roc_curve(raw_data['label'], y_pred[:,i], pos_label=i)
+        
+    # plotting    
+    plt.plot(fpr[0], tpr[0], linestyle='--',color='orange', label='Class 0 vs Rest')
+    plt.plot(fpr[1], tpr[1], linestyle='--',color='green', label='Class 1 vs Rest')
+    plt.plot(fpr[2], tpr[2], linestyle='--',color='blue', label='Class 2 vs Rest')
+    plt.title('Multiclass ROC curve')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive rate')
+    plt.legend(loc='best')
+    plt.savefig(f'{output_folder}/Multiclass ROC',dpi=300);  
+
+def plot_labels():
+
+    data=pd.melt(time_data, id_vars='label', value_vars=[col for col in time_data.columns.tolist() if 'label' not in col], var_name='time')
+
+    #plots the data in the colour for the label it was given
+    data['time'] = data['time'].astype(int)
+    sns.lineplot(data=data.groupby(['label', 'time']).mean().reset_index(), x='time', y='value', hue='label')
+    sns.lineplot(data=data, x='time', y='value', hue='label')
+    palette = {0.0: 'firebrick', 1.0: 'darkorange', 2.0: 'rebeccapurple', '0': 'firebrick', '1': 'darkorange', '3': 'rebeccapurple'}
+
+def compare_labels(raw_data, time_data):
+    #compares the original label column with the predicted label column?
+    raw_data['predict_label'] = time_data['label']
+    raw_data['diff'] = [0 if val == 0 else 1 for val in (raw_data['label'] - raw_data['predict_label'])]
+    return raw_data
+
+
+def plot_comparison(comparison, palette=False):
+    if not palette:
+        palette='muted'
+
+    time_columns=[col for col in comparison.columns.tolist() if col not in ['label', 'molecule_number','predict_label', 'diff']]
+
+    data=pd.melt(comparison, id_vars=['label'], value_vars=time_columns, var_name='time')
+    data['time']=data['time'].astype(int)
+    for molecule, df in comparison[comparison['diff'] == 1].groupby('molecule_number'):
+        
+        original_label = df['label'].tolist()[0]
+        predict_label = df['predict_label'].tolist()[0]
+
+        fig, ax = plt.subplots()
+        sns.lineplot(data=data.groupby(['label', 'time']).mean().reset_index(), x='time', y='value', hue='label', palette=palette)
+        sns.lineplot(x=np.arange(0, len(time_columns)), y=df[time_columns].values[0], color=palette[original_label], linestyle='--')
+        plt.title(f'Molecule {molecule}: original label {original_label}, predicted {predict_label}')
+        plt.show()
+
+
+if __name__ == "__main__":
+
+    model_path = f'Results/training_model/short_only_normalised_trajectories/adjust_weights/new_model_short_weights.hdf5'
+    input_path = f'Results/training_model/TEST_XAXIS_fUNCTION/labelled_for_training_July/long_only_trajectories.csv'
+    output_folder = f'Results/training_model/TEST_XAXIS_fUNCTION/labelled_for_training_July/LONG_ONLY_ADJUSTED_WEIGHTS/'
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+        #NOTE: if USING THIS VALIDATE DATA TO CHECK ALL OF THE MODELS FOR MY THESIS, CHECK WHETHER I'M USING NORMALISED DATA: I.E IF I'VE OUTPUT THE NORMALISED TRAJECTORIES ORIGINALLY TO TRAIN THE DATA, CALL THE LABELLED NORMALISED TRAJECTOREIS IN THE INPUT PATH, BUT THAT'S ONLY FOR VALIDATION, AS THIS PART IS BUILT INTO THE PY4BLEACHING PREDICTION SECTION.
+    #read in raw data and time data
+    raw_data = pd.read_csv(input_path)
+    raw_data.drop([col for col in raw_data.columns.tolist() if 'Unnamed: ' in col], axis=1, inplace=True)
+    raw_data['label'] = raw_data['label'].fillna(0)
+
+    # prepare time series data
+    time_data = raw_data[[col for col in raw_data.columns.tolist() if col not in ['molecule_number', 'label']]]
+
+    y_pred = ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm=False)
+    plot_ROC_AUC(raw_data,y_pred,output_folder)
+
+    time_data = predict_labels(time_data, model_path, raw_data, output_folder, x_norm=False)
+    time_data.groupby('label').count()
+    comparison = compare_labels(raw_data, time_data)
+    palette = {0.0: 'firebrick', 1.0: 'darkorange', 2.0: 'rebeccapurple', '0': 'firebrick', '1': 'darkorange', '3': 'rebeccapurple'}
+    plot_comparison(comparison, palette=palette)
+
+
+
+
+
