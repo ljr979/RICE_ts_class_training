@@ -33,11 +33,19 @@ from numpy import where
 
 
 
-#EVERYTHING ABOVE HERE IS FOR BUILDING THE NEW MODEL ARCHITECTURE: MAYBE DON'T NEED? COULD MAYBE IMPORT FROM MY TRAINING SCRIPT? ASK DEZ
-
-
 def prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=False):
+    """prepares the data to be predicted by the model. this means that the data to be testing the model with needs to be in the same form as the model that was trained. 
 
+    Args:
+        raw_data (df): original manual labels, original data (raw)
+        time_data (df): normalised, time data only
+        output_folder (str): where to save
+        model_path (str): where the model to be tested lives
+        x_norm (bool, optional): how to alter the data. noise_50 fills any empty frames with gaussian noise using the last 50 values as mean and std. fillNAs fills them with NaN's (not so good). False leaves them as they are. They should already be normalised from clean_trajectories so this is not built in. Defaults to False.
+
+    Returns:
+        time_data: time data in the format required to be predicted on by the model
+    """
     time_columns = [int(col) for col in time_data.columns.tolist()]
     #noise_50 keyword results in all trajectories bcoming the same length of time columns, then filling any missing values with random noise generated from the last 50 values of the trajectory. Then it spits out time_data with these filled values
     if x_norm == 'noise_50':
@@ -103,8 +111,17 @@ def predict_labels(time_data, model_path, raw_data, output_folder, x_norm=False)
     return time_data
 
 def ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm=False):
-    """
-    This function is currently (20211020) just copied predict_labels with a change. need to run this function as the validation at the end of the script, after the predict labels script etc. to plot validation for each model.
+    """need to run this function as the validation at the end of the script, after the predict labels script to plot validation for each model.
+
+    Args:
+        time_data (df): _description_
+        model_path (str): _description_
+        raw_data (df): _description_
+        output_folder (str): _description_
+        x_norm (bool, optional): describes how the data is altered to match how the model which is being tested was trained. Defaults to False.
+
+    Returns:
+        _type_: _description_
     """
     x_predict = prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=x_norm)
     
@@ -173,14 +190,16 @@ def plot_comparison(comparison, palette=False):
 
 
 if __name__ == "__main__":
-
-    model_path = f'Results/training_model/short_only_normalised_trajectories/adjust_weights/new_model_short_weights.hdf5'
-    input_path = f'Results/training_model/TEST_XAXIS_fUNCTION/labelled_for_training_July/long_only_trajectories.csv'
-    output_folder = f'Results/training_model/TEST_XAXIS_fUNCTION/labelled_for_training_July/LONG_ONLY_ADJUSTED_WEIGHTS/'
+    #path to model of interest
+    model_path = f'Results/training_model/Model_name/model.hdf5'
+    #path to trajectories you want to validate on (need to have manual labels too)
+    input_path = f'data/Model_name/novel_data.csv'
+    output_folder = f'Results/validating_model/Model_name/novel_data/'
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-        #NOTE: if USING THIS VALIDATE DATA TO CHECK ALL OF THE MODELS FOR MY THESIS, CHECK WHETHER I'M USING NORMALISED DATA: I.E IF I'VE OUTPUT THE NORMALISED TRAJECTORIES ORIGINALLY TO TRAIN THE DATA, CALL THE LABELLED NORMALISED TRAJECTOREIS IN THE INPUT PATH, BUT THAT'S ONLY FOR VALIDATION, AS THIS PART IS BUILT INTO THE PY4BLEACHING PREDICTION SECTION.
+    #use a descriptor here to describe the type of novel data you've tested your model on
+    data_tested_on=''
     #read in raw data and time data
     raw_data = pd.read_csv(input_path)
     raw_data.drop([col for col in raw_data.columns.tolist() if 'Unnamed: ' in col], axis=1, inplace=True)
@@ -189,14 +208,31 @@ if __name__ == "__main__":
     # prepare time series data
     time_data = raw_data[[col for col in raw_data.columns.tolist() if col not in ['molecule_number', 'label']]]
 
+    #CALCULATE the ROC/AUC for this model, based on comparison of the manual and predicted labels
+    #use the keyword here that tells this function how you'd like the x-normalisation of the test data to be performed
     y_pred = ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm=False)
+    #plots the validation
     plot_ROC_AUC(raw_data,y_pred,output_folder)
 
+    #predict labels again on the time data
     time_data = predict_labels(time_data, model_path, raw_data, output_folder, x_norm=False)
     time_data.groupby('label').count()
+    #compare the labels with the raw vs time data
     comparison = compare_labels(raw_data, time_data)
-    palette = {0.0: 'firebrick', 1.0: 'darkorange', 2.0: 'rebeccapurple', '0': 'firebrick', '1': 'darkorange', '3': 'rebeccapurple'}
-    plot_comparison(comparison, palette=palette)
+    #save this for reference
+    comparison.to_csv(f'{output_folder}predicted_comparison.csv')
+
+
+    #now calculate the accuracy and save this for reference
+    incorrect=(len(comparison[comparison['diff']>0])/len(comparison))*100
+    accuracy=[data_tested_on, incorrect]
+    acc=pd.DataFrame(accuracy).T
+    acc.columns=['model_name', 'data_for_ROC', 'incorrect_predictions (%)']
+    acc.to_csv(f'{output_folder}accuracy.csv')
+
+
+    #plot this comparison
+    plot_comparison(comparison, palette='Greens')
 
 
 
