@@ -24,8 +24,36 @@ from matplotlib import pyplot
 from numpy import where
 
 #---------------------------------------
+def fill_nan(norm_traj):
+    time_columns = [int(col) for col in norm_traj.columns.tolist() if col not in ['molecule_number']]
+    if max(time_columns) != 1000:
+        new_columns = [str(timepoint) for timepoint in range(max(time_columns)+1, 1000)]
+        norm_traj[new_columns] = np.nan
 
-def prepare_data_for_labelling(input_files, output_folder, streamlit=False):
+
+    return norm_traj
+#now to find the last 50 intensity values and average + SD of each molecule intensity. this results in the new DF being made with both SD and mean for every single molecule, which we can use to make a normal distribution to draw from when 
+def fill_noise_50(data, num_vals=50):
+    """_summary_
+
+    Args:
+        data (df): melted df with normalised trajectories filled to 1000 with NaN so all same length
+        num_vals (int, optional): the number of values you want to use to fill the empty frames with, uses this many values to generate noise by finding mean and std. (of the preceding num of frames eg. the last 50 frames mean and std and noise around those values). Defaults to 50.
+    """
+    filled_data=[]
+    for group, df in data.groupby(['molecule_number']):
+        missing_values = df[df['intensity'].isnull()]
+        complete_values = df[~df['intensity'].isnull()]
+        last_fifty_av = complete_values.tail(num_vals).mean()['intensity']
+        last_fifty_sd = complete_values.tail(num_vals).std()['intensity']
+        missing_values['intensity'] = np.random.normal(last_fifty_av, last_fifty_sd, len(missing_values['intensity']))
+        df = pd.concat([complete_values, missing_values])
+        filled_data.append(df)
+
+    filled_data=pd.concat(filled_data)
+    return filled_data
+
+def prepare_data_for_labelling(input_files, output_folder, x_norm=False, y_norm=True, streamlit=False):
 
     if not os.path.exists (f'{output_folder}labelling_molecules/'):
         os.makedirs(f'{output_folder}labelling_molecules/')
@@ -34,13 +62,13 @@ def prepare_data_for_labelling(input_files, output_folder, streamlit=False):
     #this is an if statement changes the input files depending on whether the molecules are labelled or not. if they've been labelled, the input files become a different path, and are called 'labelled data'
     
     if streamlit:
-        input_files=[filename for filename in os.listdir(f'{output_folder}labelled_molecules/') if 'labelled_data' in filename]
+        input_files=[filename for filename in os.listdir(f'{output_folder}labelling_molecules/') if 'labelled_data' in filename]
     
     #this next chunk collects the trajectories and concatinate them, then giving them unique names and carrying the metadata from their original filename. 
         #this is done here regardless of labelling or not, as it needs to be done for both. then the saving of them changes depending on streamlit
     smooshed_trajectories=[]
     for filepath in input_files:
-        trajectories=pd.read_csv(f'{output_folder}/labelled_molecules/{filepath}')
+        trajectories=pd.read_csv(f'{output_folder}/labelling_molecules/{filepath}')
         trajectories.drop([col for col in trajectories.columns.tolist() if ' ' in col], axis=1, inplace = True)
         trajectories.rename(columns={'sample_name':'molecule_number'}, inplace=True)
         smooshed_trajectories.append(trajectories)
@@ -51,25 +79,35 @@ def prepare_data_for_labelling(input_files, output_folder, streamlit=False):
     smooshed_trajectories['molecule_number']=smooshed_trajectories[['treatment', 'colocalisation', 'protein', 'number']].agg('_'.join, axis=1)
     smooshed_trajectories.drop(['treatment', 'colocalisation', 'protein', 'number'], axis=1, inplace=True)
     
-    #now if labelling has not occurred, this concatinated, labelled data needs to be SAVED as is (raw trajectories) and then the fluorescence needs to be NORMALISED to the maximum within each individual trajectory, and saved in a folder to be opened and lebelled in small chunks (100 trajectories per saved file). This subfolder will be called 'labelling molecules'
+    #now if labelling has not occurred, this concatinated data needs to be SAVED as is (raw trajectories) and then the fluorescence needs to be NORMALISED to the maximum within each individual trajectory, and saved in a folder to be opened and lebelled in small chunks (100 trajectories per saved file). This subfolder will be called 'labelling molecules'
     if not streamlit:
-        smooshed_trajectories.to_csv(f'{output_folder}labelling_molecules/smooshed_raw_data.csv')
-        #normalisation section where we normalise to max value in each trajectory
-        normalised_trajectories = smooshed_trajectories.copy().set_index('molecule_number')
-        normalised_trajectories = (normalised_trajectories.T/normalised_trajectories.T.max()).T
+        n = 100
+        smooshed_trajectories.to_csv(f'{output_folder}/smooshed_raw_data.csv')
+        if not y_norm:
+            [smooshed_trajectories[i:i+n].to_csv(f'{output_folder}labelling_molecules/data_for_training_{i}.csv') for i in range(0,smooshed_trajectories.shape[0],n)]
+        
+        if y_norm:
+            #normalisation section where we normalise to max value in each trajectory
+            normalised_trajectories = smooshed_trajectories.copy().set_index('molecule_number')
+            normalised_trajectories = (normalised_trajectories.T/normalised_trajectories.T.max()).T
+            smooshed_trajectories=normalised_trajectories
+            [smooshed_trajectories[i:i+n].to_csv(f'{output_folder}labelling_molecules/data_for_training_{i}.csv') for i in range(0,smooshed_trajectories.shape[0],n)]
 
-        #split up into smaller chunks easier for streamlit stuff 
-        n = 100  #chunk row size
-        [normalised_trajectories[i:i+n].to_csv(f'{output_folder}labelling_molecules/data_for_training_{i}.csv') for i in range(0,normalised_trajectories.shape[0],n)]
+
+        if x_norm == 'noise_50':
+            data=fill_nan(norm_traj=smooshed_trajectories)
+            #melt so that longform 
+            data=pd.melt(data, id_vars=['molecule_number'], value_vars=[col for col in data.columns.tolist() if col not in ['molecule_number']], var_name='time', value_name='intensity')
+
+            filled_data=fill_noise_50(data, num_vals=50)
+
+            #now to unmelt the dataframe and save it to csv to be imported in my training script :) 
+            df = filled_data.set_index(['molecule_number', 'time'])['intensity'].unstack().reset_index()
+            [df[i:i+n].to_csv(f'{output_folder}labelling_molecules/data_for_training_{i}.csv') for i in range(0,df.shape[0],n)]
+        
 
     else:
-        #this section accounts for x axis extending. Just extends and fills with NAN the extended length.
-        #this is done only when labelling has already occurred, and is saved in the labelling molecules file
-        #here we are just trying to make all of the data we are training on has 1000 time points so that if I have longer time series, the model we have trained can operate on that shape of data
-        time_columns = [int(col) for col in smooshed_trajectories.columns.tolist() if col not in ['molecule_number', 'label']]
-        if max(time_columns) != 1000:
-            new_columns = [str(timepoint) for timepoint in range(max(time_columns)+1, 1000)]
-            smooshed_trajectories[new_columns] = np.nan
+
         smooshed_trajectories.to_csv(f'{output_folder}labelling_molecules/smooshed_labels.csv')
 
 def map_labels(input_path, output_folder, labels):
@@ -291,6 +329,15 @@ def pipeline(input_path,output_folder, labels):
     time_data.groupby('label').count()
     #compare the labels column between the raw data (which has the manual labels) and the time data (which ahs the new labels assigned.)
     comparison = compare_labels(raw_data, time_data)
+    comparison.to_csv(f'{output_folder}predicted_comparison.csv')
+
+
+    #now calculate the accuracy and save this for reference
+    incorrect=(len(comparison[comparison['diff']>0])/len(comparison))*100
+    accuracy=[incorrect]
+    acc=pd.DataFrame(accuracy).T
+    acc.columns=['incorrect_predictions (%)']
+    acc.to_csv(f'{output_folder}accuracy.csv')
     palette = {0.0: 'firebrick', 1.0: 'darkorange', 2.0: 'rebeccapurple', '0': 'firebrick', '1': 'darkorange', '3': 'rebeccapurple'}
     #plot this comparison
     plot_comparison(comparison, palette=palette)
@@ -308,13 +355,19 @@ if __name__ == "__main__":
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+    
+    #adjust these according to the model you're making
+        #so, x_norm can be false if you're training a model for a single length trajectory, but make it 'noise_50' as a string, if you want to add noise to the terminal end before saving them
+    x_norm=False
+    #this should be true, but if you wanted to train one on RAW fluorescence, change to false. 
+    y_norm=True
 
     #FIRST, run this function. This is BEFORE you've manually labelled the trajectories. it runs through 
-    prepare_data_for_labelling(input_files=input_files, output_folder=output_folder, streamlit=False)
+    prepare_data_for_labelling(input_files=input_files, output_folder=output_folder, x_norm=x_norm, y_norm=y_norm, streamlit=False)
 
     #now do streamlit at this point and come back to run pipeline (now have a bunch of normalised trajectory files with same unique names because it's easier for streamlit, and just smoosh them back together for training model)
     #giving empty list for the input files because in the previous running of this function we define the input files as a bunch of files that have 'labelled_data' in them, which is what we get from strealit output
-    prepare_data_for_labelling(input_files=[], output_folder=output_folder, streamlit=True)
+    prepare_data_for_labelling(input_files=[], output_folder=output_folder, x_norm=False, y_norm=True, streamlit=True)
     #now this is the new input path, because these labelled molecules have just been concatinated all together again.
     input_path= f'{output_folder}labelling_molecules/smooshed_labels.csv'
 
