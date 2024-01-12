@@ -16,7 +16,7 @@ input_folder='data/0_raw_original_collated/2_mixed/'
 output_folder='Results/1_Optimising_generalisability/a_normalising/'
 exp_num = 'Exp1'
 raw_trajectories=pd.read_csv(f'{input_folder}{exp_num}_cleaned_data.csv')
-
+raw_trajectories.drop([col for col in raw_trajectories.columns.tolist() if 'Unnamed: 0' in col], axis=1, inplace=True)
 normalised_trajectories = raw_trajectories.copy().set_index('molecule_number')
 normalised_trajectories = (normalised_trajectories.T/normalised_trajectories.T.max()).T
 normalised_trajectories.to_csv(f'{output_folder}cleaned_data.csv')

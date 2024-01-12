@@ -191,15 +191,15 @@ def plot_comparison(comparison, palette=False):
 
 if __name__ == "__main__":
     #path to model of interest
-    model_path = f'Results/training_model/Model_name/model.hdf5'
+    model_path = f'Models/Model_3/model.hdf5'
     #path to trajectories you want to validate on (need to have manual labels too)
-    input_path = f'data/Model_name/novel_data.csv'
-    output_folder = f'Results/validating_model/Model_name/novel_data/'
+    input_path = f'data/1_specific_datasets/Model_3/original.csv'
+    output_folder = f'Results/validating_model/Model_noise_added/original/'
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
     #use a descriptor here to describe the type of novel data you've tested your model on
-    data_tested_on=''
+    data_tested_on='long_trajectories'
     #read in raw data and time data
     raw_data = pd.read_csv(input_path)
     raw_data.drop([col for col in raw_data.columns.tolist() if 'Unnamed: ' in col], axis=1, inplace=True)
@@ -227,12 +227,12 @@ if __name__ == "__main__":
     incorrect=(len(comparison[comparison['diff']>0])/len(comparison))*100
     accuracy=[data_tested_on, incorrect]
     acc=pd.DataFrame(accuracy).T
-    acc.columns=['model_name', 'data_for_ROC', 'incorrect_predictions (%)']
+    acc.columns=['data_for_ROC', 'incorrect_predictions (%)']
     acc.to_csv(f'{output_folder}accuracy.csv')
 
 
     #plot this comparison
-    plot_comparison(comparison, palette='Greens')
+    plot_comparison(comparison, palette='viridis')
 
 
 

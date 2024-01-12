@@ -10,7 +10,7 @@ import shutil
 
 input_folder = 'raw_data/'
 #directory within the repository to save new copies of these files. 'Exp_1' is an example of a subfolder that would exist to show the specific experiment these raw files came from.
-output_folder = 'Results/training_model/collected_data/Exp_1/'
+output_folder = 'Results/training_model/collected_data/Exp1/'
 
 #create output folder specified above
 if not os.path.exists(output_folder):
