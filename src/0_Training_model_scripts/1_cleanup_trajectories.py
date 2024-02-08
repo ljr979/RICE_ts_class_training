@@ -60,31 +60,33 @@ def compile_trajectories(folder_list, input_folder, output_folder, Experiment_nu
     smooshed_trajectories.to_csv(f'{output_folder}/{Experiment_num}_{folder}_initial_compiled_data.csv')
     return smooshed_trajectories
 
-#name the experiment as you had named in in 0_collect_data
-Experiment_num='Exp1'
-#folder with the collected data
-input_folder = f'Results/training_model/collected_data/{Experiment_num}/'
-#This output will be where the cleaned up dataframe with all trajectories will save
-output_folder = f'Results/training_model/clean_data/'
 
-#make output folder
-if not os.path.exists(output_folder):
-    os.makedirs(output_folder)
+if __name__ == "__main__":
+    #name the experiment as you had named in in 0_collect_data
+    Experiment_num='Exp1'
+    #folder with the collected data
+    input_folder = f'Results/training_model/collected_data/{Experiment_num}/'
+    #This output will be where the cleaned up dataframe with all trajectories will save
+    output_folder = f'Results/training_model/clean_data/'
 
-#find the folders within the input folder. this should be the 'proteins' which you defined in the previous script, which have another folder beneath them.
-folder_list = [folder for folder in os.listdir(input_folder)]
-#gather all trajectories and save initial compilation, before making new dataframe with new names
-smooshed_trajectories=compile_trajectories(folder_list, input_folder, output_folder)
+    #make output folder
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
-#now need to assign unique names to the molecules
-smooshed_trajectories['metadata'] = smooshed_trajectories['treatment'] + '_' + smooshed_trajectories['colocalisation'] + '_' + smooshed_trajectories['protein']
+    #find the folders within the input folder. this should be the 'proteins' which you defined in the previous script, which have another folder beneath them.
+    folder_list = [folder for folder in os.listdir(input_folder)]
+    #gather all trajectories and save initial compilation, before making new dataframe with new names
+    smooshed_trajectories=compile_trajectories(folder_list, input_folder, output_folder)
 
-#now we want to assign a UNIQUE and enumerated molecule number for every trajectory which carries the metadata through the entire analysis, so we can track where they came from.
-smooshed_trajectories['molecule_number'] = [f'{metadata}_{x}' for x, metadata in enumerate(smooshed_trajectories['metadata'])]
+    #now need to assign unique names to the molecules
+    smooshed_trajectories['metadata'] = smooshed_trajectories['treatment'] + '_' + smooshed_trajectories['colocalisation'] + '_' + smooshed_trajectories['protein']
 
-timeseries_data = ['molecule_number'] + [col for col in smooshed_trajectories.columns.tolist() if type(col) == int]
-timeseries_data = smooshed_trajectories[timeseries_data].copy()
-#now save! for labelling manually
-timeseries_data.to_csv(f'{output_folder}{Experiment_num}_cleaned_data.csv')
+    #now we want to assign a UNIQUE and enumerated molecule number for every trajectory which carries the metadata through the entire analysis, so we can track where they came from.
+    smooshed_trajectories['molecule_number'] = [f'{metadata}_{x}' for x, metadata in enumerate(smooshed_trajectories['metadata'])]
+
+    timeseries_data = ['molecule_number'] + [col for col in smooshed_trajectories.columns.tolist() if type(col) == int]
+    timeseries_data = smooshed_trajectories[timeseries_data].copy()
+    #now save! for labelling manually
+    timeseries_data.to_csv(f'{output_folder}{Experiment_num}_cleaned_data.csv')
 
 
