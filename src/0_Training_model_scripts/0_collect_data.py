@@ -1,13 +1,13 @@
+"""This script takes the raw trajectory files and makes the name of the file consistent, and saved into the folder in the same place
+"""
 import os, re
 import pandas as pd
 import numpy as np
 from loguru import logger
 import glob
 import shutil
-#This script takes the raw trajectory files and makes the name of the file consistent, and saved into the folder in the same place
 
 #directory to where the 'raw' trajectories files have been output during image processing
-
 input_folder = 'raw_data/'
 #directory within the repository to save new copies of these files. 'Exp_1' is an example of a subfolder that would exist to show the specific experiment these raw files came from.
 output_folder = 'Results/training_model/collected_data/Exp1/'
