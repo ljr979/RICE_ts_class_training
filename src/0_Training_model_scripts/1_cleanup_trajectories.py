@@ -1,19 +1,25 @@
+"""Cleans up individual trajectories which were put into a folder in this repository by the 0_collect_data script. as such, the output of that script is the input folder here.
+#need to run this for each experiment within collected_data, so make that the first variable (needs to match the string that is the name of your experiment)
+
+"""
 import os, re
 import pandas as pd
 import numpy as np
 from loguru import logger
 import glob
-#cleans up individual trajectories which were put into a folder in this repository by the 0_collect_data script. as such, the output of that script is the input folder here.
-#need to run this for each experiment within collected_data, so make that the first variable (needs to match the string that is the name of your experiment)
-Experiment_num='Exp1'
-input_folder = f'Results/training_model/collected_data/{Experiment_num}/'
-#This output will be where the cleaned up dataframe with all trajectories will save
-output_folder = f'Results/training_model/clean_data/'
-
-if not os.path.exists(output_folder):
-    os.makedirs(output_folder)
 
 def compile_trajectories(folder_list, input_folder, output_folder, Experiment_num):
+    """collect trajectories, add metadata columns, and organise trajectories files so that they can be fed into future scripts/training model/labelling molecules
+
+    Args:
+        folder_list (list): list of folders within the input folder (which have subfolders containing the trajectories)
+        input_folder (str): input folder for the experiment
+        output_folder (str): path to save new, collated trajectories with new column names
+        Experiment_num (str): experiment number of the trajectories to be collected
+
+    Returns:
+        df: dataframe with collated trajectories and additional metadata
+    """
     #now loop through those folders  and pull out the CSV files (trajectories files) in each folder and put them in a dataframe with new columns to keep data about treatment 
     all_trajectory_data = []
     for folder in folder_list:
@@ -54,7 +60,18 @@ def compile_trajectories(folder_list, input_folder, output_folder, Experiment_nu
     smooshed_trajectories.to_csv(f'{output_folder}/{Experiment_num}_{folder}_initial_compiled_data.csv')
     return smooshed_trajectories
 
-#find the folders withinthe input folder. this should be the 'proteins' which you defined in the previous script, which have another folder beneath them.
+#name the experiment as you had named in in 0_collect_data
+Experiment_num='Exp1'
+#folder with the collected data
+input_folder = f'Results/training_model/collected_data/{Experiment_num}/'
+#This output will be where the cleaned up dataframe with all trajectories will save
+output_folder = f'Results/training_model/clean_data/'
+
+#make output folder
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+#find the folders within the input folder. this should be the 'proteins' which you defined in the previous script, which have another folder beneath them.
 folder_list = [folder for folder in os.listdir(input_folder)]
 #gather all trajectories and save initial compilation, before making new dataframe with new names
 smooshed_trajectories=compile_trajectories(folder_list, input_folder, output_folder)
@@ -67,7 +84,7 @@ smooshed_trajectories['molecule_number'] = [f'{metadata}_{x}' for x, metadata in
 
 timeseries_data = ['molecule_number'] + [col for col in smooshed_trajectories.columns.tolist() if type(col) == int]
 timeseries_data = smooshed_trajectories[timeseries_data].copy()
-#now save! for labelling
+#now save! for labelling manually
 timeseries_data.to_csv(f'{output_folder}{Experiment_num}_cleaned_data.csv')
 
 
