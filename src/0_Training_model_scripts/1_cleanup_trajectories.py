@@ -41,9 +41,9 @@ def compile_trajectories(folder_list, input_folder, output_folder, Experiment_nu
             #this reads the entire path
             raw_trajectories = pd.read_csv(f"{filepath}")
             #drop the column that is read in (blank)
-            raw_trajectories.drop([col for col in raw_trajectories.columns.tolist() if ' ' in col], axis=1, inplace = True)
+            raw_trajectories.drop([col for col in raw_trajectories.columns.tolist() if ' ' in col], axis=1, inplace=True)
             #transpose the dataframe to be a different orientation, and rename the index 'molecule_number' which is assigned by the image processing pipeline. We will rename these later to be more specific
-            raw_trajectories = raw_trajectories.T.reset_index().rename(columns = {'index': 'molecule_number'})
+            raw_trajectories = raw_trajectories.T.reset_index().rename(columns={'index': 'molecule_number'})
             #assign new columns with the variables we just made
             raw_trajectories['treatment'] = exp_condition
             raw_trajectories['colocalisation'] = treat_name
@@ -63,7 +63,7 @@ def compile_trajectories(folder_list, input_folder, output_folder, Experiment_nu
 
 if __name__ == "__main__":
     #name the experiment as you had named in in 0_collect_data
-    Experiment_num='Exp1'
+    Experiment_num = 'Exp1'
     #folder with the collected data
     input_folder = f'Results/training_model/collected_data/{Experiment_num}/'
     #This output will be where the cleaned up dataframe with all trajectories will save
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     #find the folders within the input folder. this should be the 'proteins' which you defined in the previous script, which have another folder beneath them.
     folder_list = [folder for folder in os.listdir(input_folder)]
     #gather all trajectories and save initial compilation, before making new dataframe with new names
-    smooshed_trajectories=compile_trajectories(folder_list, input_folder, output_folder)
+    smooshed_trajectories = compile_trajectories(folder_list, input_folder, output_folder)
 
     #now need to assign unique names to the molecules
     smooshed_trajectories['metadata'] = smooshed_trajectories['treatment'] + '_' + smooshed_trajectories['colocalisation'] + '_' + smooshed_trajectories['protein']
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     #now we want to assign a UNIQUE and enumerated molecule number for every trajectory which carries the metadata through the entire analysis, so we can track where they came from.
     smooshed_trajectories['molecule_number'] = [f'{metadata}_{x}' for x, metadata in enumerate(smooshed_trajectories['metadata'])]
 
-    timeseries_data = ['molecule_number'] + [col for col in smooshed_trajectories.columns.tolist() if type(col) == int]
+    timeseries_data = ['molecule_number'] + [col for col in smooshed_trajectories.columns.tolist() if type(col)==int]
     timeseries_data = smooshed_trajectories[timeseries_data].copy()
     #now save! for labelling manually
     timeseries_data.to_csv(f'{output_folder}{Experiment_num}_cleaned_data.csv')
