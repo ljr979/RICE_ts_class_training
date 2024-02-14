@@ -1,7 +1,10 @@
+"""This script performs the functions of scripts 0-4, i.e., it performs the pipeline for training a new model, all in one place. This script also takes a keyword which will normalise the data to which ever model you require.
 
+Returns:
+    model: trained machine learning model
+"""
 import os
 import re
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -23,8 +26,16 @@ from imblearn.pipeline import Pipeline
 from matplotlib import pyplot
 from numpy import where
 
-#---------------------------------------
+
 def fill_nan(norm_traj):
+    """fills the empty x-axis timepoints with NaN values (x norm strategy)
+
+    Args:
+        norm_traj (df): dataframe with y-normalised trajectories
+
+    Returns:
+        df: df with NaNs at the terminal x axis 
+    """
     time_columns = [int(col) for col in norm_traj.columns.tolist() if col not in ['molecule_number']]
     if max(time_columns) != 1000:
         new_columns = [str(timepoint) for timepoint in range(max(time_columns)+1, 1000)]
@@ -32,9 +43,10 @@ def fill_nan(norm_traj):
 
 
     return norm_traj
+
 #now to find the last 50 intensity values and average + SD of each molecule intensity. this results in the new DF being made with both SD and mean for every single molecule, which we can use to make a normal distribution to draw from when 
 def fill_noise_50(data, num_vals=50):
-    """_summary_
+    """fills the terminal fluorescence values with random gaussian noise
 
     Args:
         data (df): melted df with normalised trajectories filled to 1000 with NaN so all same length
@@ -54,13 +66,19 @@ def fill_noise_50(data, num_vals=50):
     return filled_data
 
 def prepare_data_for_labelling(input_files, output_folder, x_norm=False, y_norm=True, streamlit=False):
+    """prepare data to be manually labelled by naming all trajectories with a unique molecule name containing some identifying metadata and splitting into chunks of 100 trajectories. 
 
+    Args:
+        input_files (list): list of trajectory files to read in
+        output_folder (str): location to save files
+        x_norm (bool, optional): how to normalise the x axis ('noise_50' if wanting to add noise to the terminal end). Defaults to False.
+        y_norm (bool, optional): should be true, this normalises EACH trajectory to the max of that trajectory. Defaults to True.
+        streamlit (bool, optional): whether the data has bee nthrough streamlit or not. Defaults to False.
+    """
     if not os.path.exists (f'{output_folder}labelling_molecules/'):
         os.makedirs(f'{output_folder}labelling_molecules/')
-    #
-        
+
     #this is an if statement changes the input files depending on whether the molecules are labelled or not. if they've been labelled, the input files become a different path, and are called 'labelled data'
-    
     if streamlit:
         input_files=[filename for filename in os.listdir(f'{output_folder}labelling_molecules/') if 'labelled_data' in filename]
     
@@ -111,7 +129,14 @@ def prepare_data_for_labelling(input_files, output_folder, x_norm=False, y_norm=
         smooshed_trajectories.to_csv(f'{output_folder}labelling_molecules/smooshed_labels.csv')
 
 def map_labels(input_path, output_folder, labels):
-    # this function just maps any labels that a user might have manually assigned, to a binary classifier. This dictionary is defined in the main and may not even be necessary ,but allows for any manual inconsistencies. saves this as the file for training.
+    """this function just maps any labels that a user might have manually assigned, to a binary classifier. This dictionary is defined in the main and may not even be necessary ,but allows for any manual inconsistencies. saves this as the file for training.
+
+    Args:
+        input_path (str): path to labelled data
+        output_folder (str): path to save the mapped labels dataframe
+        labels (dict): dictionary which contains the corrected labels versus your own labels
+    """
+    # 
     labelled_data=pd.read_csv(input_path)
     labelled_data.drop([col for col in labelled_data.columns if 'Unnamed' in col], axis=1, inplace=True)
     labelled_data['label'] = labelled_data['label'].map(labels)
@@ -159,7 +184,7 @@ def plot_data_samples(dataframe, sample_numbers):
 def balance_data(time_data, labels):
     """[this function serves the purpose of balancing datasets that have been categorised for machine learning. It used SMOTE (see https://machinelearningmastery.com/smote-oversampling-for-imbalanced-classification/ for more info) in order to do this. SMOTE basically just over and undersamples severely unbalanced datasets so that the model can be built to pick trajectories on a balanced set, making it more reliable. OneHotEncodes categories so that the SMOTE function can do this, then tranfers this back into original categories using argmax :) iMPORTANT: my original dataset I made this fucntion for was 2700 trajectories. Thus, I have over and undersampled specifying the NUMBER of trajectories I want in each category originally this was 1000 of cateogries 1 and 0, and 500 of 2. THus is won't work for datasets that are super different to this. need to adjust this but for a similar ratio depending on your data (see link for more info on how many you should have in each category to be balanced). THis could be improved in the future to have this as something you enter into the function??? some way to make it a ratio rather than a number of trajectories? ]
     """
-    #rename these so they're more similar to examples I found online just for my own confusion haha
+    #rename these so they're more similar to the function
     time_data = time_data.fillna(0)
     x_col = time_data
     y_col = labels
@@ -173,8 +198,6 @@ def balance_data(time_data, labels):
     #run the onehotencoding on the y_cols array and reshape (think this is so it is a 2D array as it can't work on a 1d array)
     enc.fit(y_col.reshape(-1,1))
 
-    #wouldn't run transform unless I turned this back into a dataframe because in the line below (taken directly from somethign you wrote earlier in this script) it can't use 'values' as .values needs a dataframe
-    #y_col = pd.DataFrame(y_col)
 
     #transform data using the encoding (only works to a certain point when I have transferred back to dataframe, but doesn't run at all if I don't turn into dataframe)
     y_col = enc.transform(y_col.reshape(-1, 1)).toarray()
@@ -197,8 +220,15 @@ def balance_data(time_data, labels):
     return time_data, labels
 
 def train_new_model(time_data, labels, output_folder, itrs=1, classifier_name='resnet'):
+    """Takes the timeseries data and trains a new model, and saves it
 
-    #this line balances the dataset by over and under sampling it so it's equal again (using SMOTE), then spits out equalised data for the splitting into test and train datasets
+    Args:
+        time_data (df): dataframe with the labelled time data
+        labels (series): the possible labels from the dataset
+        output_folder (str): where to save your new model
+        itrs (int, optional): number of times to iterate over data for training. Defaults to 1.
+        classifier_name (str, optional): _description_. Defaults to 'resnet'.
+    """
     logger.info(f'time data before balance {time_data.shape}')
     logger.info(f'labels before balance {labels.shape}')
     time_data, labels = balance_data(time_data, labels)
@@ -241,6 +271,15 @@ def prepare_data_to_predict(time_data):
     return time_data
 
 def predict_labels(time_data, model_path):
+    """predict the class of the timedata using the new model
+
+    Args:
+        time_data (df): trajectories df with timeseries data
+        model_path (str): path to trained model
+
+    Returns:
+        df: time data with predicted labels
+    """
     # evaluate best model on new dataset
     x_predict = prepare_data_to_predict(time_data)
     input_shape = x_predict.shape[1:]
@@ -251,23 +290,29 @@ def predict_labels(time_data, model_path):
     time_data['label'] = y_pred
     return time_data
 
-def plot_labels():
-
-    data=pd.melt(time_data, id_vars='label', value_vars=[col for col in time_data.columns.tolist() if 'label' not in col], var_name='time')
-
-    #plots the data in the colour for the label it was given
-    data['time'] = data['time'].astype(int)
-    sns.lineplot(data=data.groupby(['label', 'time']).mean().reset_index(), x='time', y='value', hue='label')
-    sns.lineplot(data=data, x='time', y='value', hue='label')
-    palette = {0.0: 'firebrick', 1.0: 'darkorange', 2.0: 'rebeccapurple', '0': 'firebrick', '1': 'darkorange', '3': 'rebeccapurple'}
 
 def compare_labels(raw_data, time_data):
-    #compares the original label column with the predicted label column?
+    """compares the original label column with the predicted label column
+
+    Args:
+        raw_data (df): non normalised original trajectories with molecule names, and original ground truth label
+        time_data (df): trajectories which have been normalised for prediction, with predicted labels
+
+    Returns:
+        df: raw data with labels and comparison between predicted and original
+    """
+    #
     raw_data['predict_label'] = time_data['label']
     raw_data['diff'] = [0 if val == 0 else 1 for val in (raw_data['label'] - raw_data['predict_label'])]
     return raw_data
 
 def plot_comparison(comparison, palette=False):
+    """plot the trajectories that were incorrectly predicted to compare the predicted v ground truth class
+
+    Args:
+        comparison (df): df containing the comparison classes
+        palette (bool, optional): colour to plot. Defaults to False.
+    """
     if not palette:
         palette='muted'
 
@@ -289,9 +334,15 @@ def plot_comparison(comparison, palette=False):
 
 #--------------------
 
-
 def pipeline(input_path,output_folder, labels):
-    #this pulls together ALL of the functions above!
+    """This pulls together ALL of the functions above!
+
+    Args:
+        input_path (str): input to data
+        output_folder (str): where to save things
+        labels (series): integers that denote the labels used to classify things
+    """
+    #
     #create folders for outputting
     output_folders = ['trained_model','validation']
     for folder in output_folders:
@@ -343,7 +394,6 @@ def pipeline(input_path,output_folder, labels):
     plot_comparison(comparison, palette=palette)
 
     
-
 if __name__ == "__main__":
     #put the files here you'd like to use for labelling and subsequent training
     input_files = [
@@ -362,11 +412,11 @@ if __name__ == "__main__":
     #this should be true, but if you wanted to train one on RAW fluorescence, change to false. 
     y_norm=True
 
-    #FIRST, run this function. This is BEFORE you've manually labelled the trajectories. it runs through 
+    #FIRST, run this function. This is BEFORE you've manually labelled the trajectories. 
     prepare_data_for_labelling(input_files=input_files, output_folder=output_folder, x_norm=x_norm, y_norm=y_norm, streamlit=False)
 
-    #now do streamlit at this point and come back to run pipeline (now have a bunch of normalised trajectory files with same unique names because it's easier for streamlit, and just smoosh them back together for training model)
-    #giving empty list for the input files because in the previous running of this function we define the input files as a bunch of files that have 'labelled_data' in them, which is what we get from strealit output
+    #now do manual labelling at this point and come back to run pipeline (now have a bunch of normalised trajectory files with same unique names because it's easier for streamlit, and just smoosh them back together for training model)
+    #giving empty list for the input files because in the previous running of this function we define the input files as a bunch of files that have 'labelled_data' in them, which is what we will label the manually labelled trajectories
     prepare_data_for_labelling(input_files=[], output_folder=output_folder, x_norm=False, y_norm=True, streamlit=True)
     #now this is the new input path, because these labelled molecules have just been concatinated all together again.
     input_path= f'{output_folder}labelling_molecules/smooshed_labels.csv'
