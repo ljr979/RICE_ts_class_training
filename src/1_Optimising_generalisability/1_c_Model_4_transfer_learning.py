@@ -1,4 +1,5 @@
-#EVERYTHING HERE IS FROM 'BUILD_NEW_MODEL_OLD_WEIGHTS.PY'
+"""This script finds the shape of your new data (e.g. long trajectories 1000 long) and builds a new model from the weights of an old model trained on different data. 
+"""
 import os
 import re
 import matplotlib.pyplot as plt
@@ -21,9 +22,19 @@ from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline
 from matplotlib import pyplot
 from numpy import where
-#this script finds the shape of your new data (e.g. long trajectories 1000 long) and builds a new model from the weights of an old model trained on different data. 
-    
+
 def prepare_data_for_training(X_train, y_train, X_test, y_test,):
+    """_summary_
+
+    Args:
+        X_train (_type_): _description_
+        y_train (_type_): _description_
+        X_test (_type_): _description_
+        y_test (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # transform the labels from integers to one hot vectors
     enc = preprocessing.OneHotEncoder(categories='auto')
     enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
@@ -40,13 +51,11 @@ def prepare_data_for_training(X_train, y_train, X_test, y_test,):
 
     return X_train, y_train, X_test, y_test
 
-
 def fit_classifier(X_train, y_train, X_test, y_test, classifier_name, output_directory):
   
     classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory)
 
     classifier.fit(X_train, y_train, X_test, y_test, y_true)
-
 
 def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=False):
     if classifier_name == 'fcn':
@@ -79,7 +88,6 @@ def create_classifier(classifier_name, input_shape, nb_classes, output_directory
     if classifier_name == 'inception':
         from dl4tsc.classifiers import inception
         return inception.Classifier_INCEPTION(output_directory, input_shape, nb_classes, verbose)
-
 
 # to build new model without training, need to DEFINE the 'resnet' class neural network. did this by defining the class but created this classifier using the function 'create_classifier' which I used in my training script, but to do this also had to create shape of data and nb classes using 'long_trajectories' dataframe (because 'create_classifier' function imports the class 'resnet' and gives shape etc. based on a datafram  to get the shape)
 
@@ -115,7 +123,7 @@ def make_new_model(time_data, output_folder, robust_weights_path):
 
 if __name__ == "__main__":
 
-#this input path is to the FILE THAT IS THE SHAPE YOU WANT (i.e, the trajectories you've just extracted, so the trajectories folder in the experiment you're analysing)
+    #this input path is to the FILE THAT IS THE SHAPE YOU WANT (i.e, the trajectories you've just extracted, so the trajectories folder in the experiment you're analysing)
 
     input_file='data/1_specific_datasets/Model_4/new.csv'
 
