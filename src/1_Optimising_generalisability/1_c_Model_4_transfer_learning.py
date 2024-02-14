@@ -24,16 +24,16 @@ from matplotlib import pyplot
 from numpy import where
 
 def prepare_data_for_training(X_train, y_train, X_test, y_test,):
-    """_summary_
+    """prepare the data to feed into the model architecture
 
     Args:
-        X_train (_type_): _description_
-        y_train (_type_): _description_
-        X_test (_type_): _description_
-        y_test (_type_): _description_
+        x_train : output from train test split (training v testing datasets for validating model)
+        y_train : output from train test split (training v testing datasets for validating model)
+        x_test : output from train test split (training v testing datasets for validating model)
+        y_test : output from train test split (training v testing datasets for validating model)
 
     Returns:
-        _type_: _description_
+        train and test: the reshaped data for training
     """
     # transform the labels from integers to one hot vectors
     enc = preprocessing.OneHotEncoder(categories='auto')
@@ -52,12 +52,33 @@ def prepare_data_for_training(X_train, y_train, X_test, y_test,):
     return X_train, y_train, X_test, y_test
 
 def fit_classifier(X_train, y_train, X_test, y_test, classifier_name, output_directory):
-  
+    """creates the model architecture (classifier) and then fits your data to the architecture. saves the true values for each to use later.
+
+    Args:
+        x_train (array): x and y data for training and testing
+        y_train (array): x and y data for training and testing
+        x_test (array): x and y data for training and testing
+        y_test (array): x and y data for training and testing
+        classifier_name (str): classifier (type of model to use)
+        output_directory (str): path to save model at
+    """  
     classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory)
 
     classifier.fit(X_train, y_train, X_test, y_test, y_true)
 
 def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=False):
+    """imports the classifier you want to use for training
+
+    Args:
+        classifier_name (str): _description_
+        input_shape (tuple): shape of the data output from fit_classifier function
+        nb_classes (int): number of classes
+        output_directory (str): output folder
+        verbose (bool, optional):. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
     if classifier_name == 'fcn':
         from dl4tsc.classifiers import fcn
         return fcn.Classifier_FCN(output_directory, input_shape, nb_classes, verbose)
@@ -92,7 +113,16 @@ def create_classifier(classifier_name, input_shape, nb_classes, output_directory
 # to build new model without training, need to DEFINE the 'resnet' class neural network. did this by defining the class but created this classifier using the function 'create_classifier' which I used in my training script, but to do this also had to create shape of data and nb classes using 'long_trajectories' dataframe (because 'create_classifier' function imports the class 'resnet' and gives shape etc. based on a datafram  to get the shape)
 
 def make_new_model(time_data, output_folder, robust_weights_path):
+    """now create a model that does not need to be trained, based on previous model weights and new data shape (this is 'transferring learning')
 
+    Args:
+        time_data (df): trajectories data
+        output_folder (str): where to save new model
+        robust_weights_path (str): path to model whose weights are to be transferred
+
+    Returns:
+        _type_: new model
+    """
     #define the other inputs to be able to create the classifier
     nb_classes = 3
     input_shape = (len(time_data.T), 1)
@@ -103,7 +133,7 @@ def make_new_model(time_data, output_folder, robust_weights_path):
     classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory)
 
     #call the 'build_model' function within the class called 'resnet'
-    model=classifier.build_model(input_shape= input_shape, nb_classes=nb_classes)
+    model = classifier.build_model(input_shape= input_shape, nb_classes=nb_classes)
     #save this new architecture (no weights adjusted yet )
     model.save(output_folder + 'new_model_architecture.hdf5')
 
@@ -124,7 +154,6 @@ def make_new_model(time_data, output_folder, robust_weights_path):
 if __name__ == "__main__":
 
     #this input path is to the FILE THAT IS THE SHAPE YOU WANT (i.e, the trajectories you've just extracted, so the trajectories folder in the experiment you're analysing)
-
     input_file='data/1_specific_datasets/Model_4/new.csv'
 
     #this is where you want the NEW model to be saved
