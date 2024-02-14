@@ -1,14 +1,13 @@
+"""script to validate your newly trained model against the GROUND TRUTH values (assigned manually). generates an ROC/AUC curve as a metric for reporting
+
+Returns:
+    accuracy: saves the accuracy as a percentage incorrect classifications compared to ground truth (human ground truth)
+"""
 import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tensorflow import keras
-from loguru import logger
-import seaborn as sns
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import seaborn as sns
 from dl4tsc.utils.constants import ARCHIVE_NAMES, CLASSIFIERS, ITERATIONS
 from dl4tsc.utils.utils import calculate_metrics
@@ -16,12 +15,9 @@ from loguru import logger
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, train_test_split
-from tensorflow import keras
 from sklearn.preprocessing import MinMaxScaler
-#from src.python_photobleaching.analysis import clean_trajectories
 from sklearn.metrics import roc_curve
 from sklearn.metrics import roc_auc_score
-
 from random import sample
 from collections import Counter
 from sklearn.datasets import make_classification
@@ -31,9 +27,7 @@ from imblearn.pipeline import Pipeline
 from matplotlib import pyplot
 from numpy import where
 
-
-
-def prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=False):
+def prepare_data_to_predict(raw_data, time_data,x_norm=False):
     """prepares the data to be predicted by the model. this means that the data to be testing the model with needs to be in the same form as the model that was trained. 
 
     Args:
@@ -98,32 +92,42 @@ def prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_no
     
     return time_data
 
+def predict_labels(time_data, model_path, raw_data, x_norm=False):
+    """evaluate best model on new dataset
 
-def predict_labels(time_data, model_path, raw_data, output_folder, x_norm=False):
-    # evaluate best model on new dataset
-    x_predict = prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=x_norm)
-    input_shape = x_predict.shape[1:]
+    Args:
+        time_data (df): contains timeseries data
+        model_path (str): where model is saved
+        raw_data (df): RAW timeseries data to predict
+        x_norm (bool, optional): how to normalise your data (feeds to preparing data for prediction). Defaults to False.
+
+    Returns:
+        df: timeseries data with a label
+    """
+    #rearrange data in time data and raw data so that it is appropriate to give to the model for evaluation / classification
+    x_predict = prepare_data_to_predict(raw_data, time_data, x_norm=x_norm)
+    #load your trained model for evaluation
     model = keras.models.load_model(model_path)
+    #model to predict the class
     y_pred = model.predict(x_predict)
+    #return indices of the maximum val 
     y_pred = np.argmax(y_pred, axis=1)
     # Add labels back to original dataframe
     time_data['label'] = y_pred
     return time_data
 
-def ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm=False):
+def ROC_AUC_probabilities(time_data, model_path, raw_data, x_norm=False):
     """need to run this function as the validation at the end of the script, after the predict labels script to plot validation for each model.
 
     Args:
-        time_data (df): _description_
-        model_path (str): _description_
-        raw_data (df): _description_
-        output_folder (str): _description_
+        time_data (df): contains timeseries data
+        model_path (str): path to model being evaluated
         x_norm (bool, optional): describes how the data is altered to match how the model which is being tested was trained. Defaults to False.
 
     Returns:
-        _type_: _description_
+        probabilities to feed into graphing
     """
-    x_predict = prepare_data_to_predict(raw_data, time_data, output_folder, model_path, x_norm=x_norm)
+    x_predict = prepare_data_to_predict(raw_data, time_data, x_norm=x_norm)
     
     input_shape = x_predict.shape[1:]
     model = keras.models.load_model(model_path)
@@ -133,10 +137,17 @@ def ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm
     return y_pred
 
 def plot_ROC_AUC(raw_data, y_pred, output_folder):
+    """plot ROC/AUC curve for model
+
+    Args:
+        raw_data (df): data with predicted classes
+        y_pred (array): probabliity from ROC/AUC analysis
+        output_folder (str): where to save data
+    """
     fpr = {}
     tpr = {}
     thresh ={}
-
+    #num of classes
     n_class = 3
 
     for i in range(n_class):    
@@ -152,24 +163,29 @@ def plot_ROC_AUC(raw_data, y_pred, output_folder):
     plt.legend(loc='best')
     plt.savefig(f'{output_folder}/Multiclass ROC',dpi=300);  
 
-def plot_labels():
-
-    data=pd.melt(time_data, id_vars='label', value_vars=[col for col in time_data.columns.tolist() if 'label' not in col], var_name='time')
-
-    #plots the data in the colour for the label it was given
-    data['time'] = data['time'].astype(int)
-    sns.lineplot(data=data.groupby(['label', 'time']).mean().reset_index(), x='time', y='value', hue='label')
-    sns.lineplot(data=data, x='time', y='value', hue='label')
-    palette = {0.0: 'firebrick', 1.0: 'darkorange', 2.0: 'rebeccapurple', '0': 'firebrick', '1': 'darkorange', '3': 'rebeccapurple'}
 
 def compare_labels(raw_data, time_data):
-    #compares the original label column with the predicted label column?
+    """compares original v model predicted labels
+
+    Args:
+        raw_data (df): df containing raw fluorescence (unpredicted) 
+        time_data (df): df containing predicted labels
+
+    Returns:
+        df: raw data with predicted labels mapped on
+    """
+    #compares the original label column with the predicted label column
     raw_data['predict_label'] = time_data['label']
     raw_data['diff'] = [0 if val == 0 else 1 for val in (raw_data['label'] - raw_data['predict_label'])]
     return raw_data
 
-
 def plot_comparison(comparison, palette=False):
+    """plots the comparison between the predicted and originally (ground truth) assigned label
+
+    Args:
+        comparison (df): df with the comparison label (i.e. whether it was correct or not compared to ground truth)
+        palette (bool, optional): colours to plot comparison if preferred. Defaults to False.
+    """
     if not palette:
         palette='muted'
 
@@ -188,7 +204,6 @@ def plot_comparison(comparison, palette=False):
         plt.title(f'Molecule {molecule}: original label {original_label}, predicted {predict_label}')
         plt.show()
 
-
 if __name__ == "__main__":
     #path to model of interest
     model_path = f'Models/Model_3/model.hdf5'
@@ -199,37 +214,34 @@ if __name__ == "__main__":
         os.makedirs(output_folder)
 
     #use a descriptor here to describe the type of novel data you've tested your model on
-    data_tested_on='long_trajectories'
+    data_tested_on = 'long_trajectories'
     #read in raw data and time data
     raw_data = pd.read_csv(input_path)
     raw_data.drop([col for col in raw_data.columns.tolist() if 'Unnamed: ' in col], axis=1, inplace=True)
     raw_data['label'] = raw_data['label'].fillna(0)
-
     # prepare time series data
     time_data = raw_data[[col for col in raw_data.columns.tolist() if col not in ['molecule_number', 'label']]]
-
+    #--------------------------------
     #CALCULATE the ROC/AUC for this model, based on comparison of the manual and predicted labels
     #use the keyword here that tells this function how you'd like the x-normalisation of the test data to be performed
-    y_pred = ROC_AUC_probabilities(time_data, model_path, raw_data, output_folder, x_norm=False)
+    y_pred = ROC_AUC_probabilities(time_data, model_path, raw_data, x_norm=False)
     #plots the validation
     plot_ROC_AUC(raw_data,y_pred,output_folder)
-
+    #---------------------------
     #predict labels again on the time data
-    time_data = predict_labels(time_data, model_path, raw_data, output_folder, x_norm=False)
+    time_data = predict_labels(time_data, model_path, raw_data, x_norm=False)
     time_data.groupby('label').count()
     #compare the labels with the raw vs time data
     comparison = compare_labels(raw_data, time_data)
     #save this for reference
     comparison.to_csv(f'{output_folder}predicted_comparison.csv')
-
-
     #now calculate the accuracy and save this for reference
-    incorrect=(len(comparison[comparison['diff']>0])/len(comparison))*100
-    accuracy=[data_tested_on, incorrect]
-    acc=pd.DataFrame(accuracy).T
-    acc.columns=['data_for_ROC', 'incorrect_predictions (%)']
+    incorrect = (len(comparison[comparison['diff']>0])/len(comparison))*100
+    accuracy = [data_tested_on, incorrect]
+    #transpose df
+    acc = pd.DataFrame(accuracy).T
+    acc.columns = ['data_for_ROC', 'incorrect_predictions (%)']
     acc.to_csv(f'{output_folder}accuracy.csv')
-
 
     #plot this comparison
     plot_comparison(comparison, palette='viridis')
