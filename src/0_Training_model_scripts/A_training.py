@@ -408,9 +408,9 @@ if __name__ == "__main__":
     
     #adjust these according to the model you're making
         #so, x_norm can be false if you're training a model for a single length trajectory, but make it 'noise_50' as a string, if you want to add noise to the terminal end before saving them
-    x_norm=False
+    x_norm = False
     #this should be true, but if you wanted to train one on RAW fluorescence, change to false. 
-    y_norm=True
+    y_norm = True
 
     #FIRST, run this function. This is BEFORE you've manually labelled the trajectories. 
     prepare_data_for_labelling(input_files=input_files, output_folder=output_folder, x_norm=x_norm, y_norm=y_norm, streamlit=False)
@@ -419,10 +419,10 @@ if __name__ == "__main__":
     #giving empty list for the input files because in the previous running of this function we define the input files as a bunch of files that have 'labelled_data' in them, which is what we will label the manually labelled trajectories
     prepare_data_for_labelling(input_files=[], output_folder=output_folder, x_norm=False, y_norm=True, streamlit=True)
     #now this is the new input path, because these labelled molecules have just been concatinated all together again.
-    input_path= f'{output_folder}labelling_molecules/smooshed_labels.csv'
+    input_path = f'{output_folder}labelling_molecules/smooshed_labels.csv'
 
     #Example: dictionary accounting for differences in labelling, but mapping them back to be binary for classification by the model. 
-    labels={'undefined':0, 'well defined':1, 'throw out':2}
+    labels = {'undefined':0, 'well defined':1, 'throw out':2}
 
     #make the model, and compare between manual and new labels
     pipeline(input_path, output_folder, labels)
