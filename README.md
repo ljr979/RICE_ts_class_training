@@ -1,5 +1,7 @@
 # Train_validate_models
-This repository conains the code used to train and validate the ResNet neural networks (**Models 1-4**) used in the analysis workflow, **py4bleaching**. The related scripts for **py4bleaching** can be found in a [separate repository](https://doi.org/10.5281/zenodo.10616736). 
+This repository conains the code used to train and validate the ResNet neural networks (**Models 1-4**) used in the analysis workflow, **py4bleaching**. The related scripts for **py4bleaching** can be found in this [separate repository](https://doi.org/10.5281/zenodo.10616736). 
+
+The data required to run the scripts found here is published [here](https://zenodo.org/records/10602864/) and can be downloaded using the ```data_download.py``` script within the ```src``` folder
 
 This repository was made specifically for reference to a thesis chapter describing the optimisation of these models. 
 
@@ -26,8 +28,10 @@ This contains the **OUTPUT** from each of the scripts in the src folder
 See ```src/README_src.md``` for detailed description/directory of scripts in each subfolder and their purpose. 
 | Folder      |  Description   |
 |-------------|---------------|
+|```data_download.py```|This script must be run before anything else as it will download the data required to run the rest of the ```src``` scripts|
 |```0_Training_model_scripts```| This is the scripts to be run in order to generate a classification model for classifying trajectories based on their shape, as well as the script that calls portions of these previous scripts as functions to run in one pipeline, and output a model. |
 |```1_Optimising_generalisability```| These are scripts that generate datasets to optimise each of the new machine learning models described in **Figures 3.1-3.3** of this thesis.|
+
 
 ## Important note
 This all pertains to the training and validating of a model for use in the ```py4bleaching``` pipeline. It is important to remember that the *'molecule name'* is saved so that once labels (classes) have been assigned, the labels can be mapped onto the raw data, as raw fluorescence is **REQUIRED** for all other steps in the analysis pipeline after classification.
