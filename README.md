@@ -1,4 +1,4 @@
-# Train_validate_models
+# RICE_ts_class_training
 This repository conains the code used to train and validate the ResNet neural networks (**Models 1-4**) used in the analysis workflow, **py4bleaching**. The related scripts for **py4bleaching** can be found in this [separate repository](https://doi.org/10.5281/zenodo.10616736). 
 
 The data required to run the scripts found here is published [here](https://zenodo.org/records/10602864/) and can be downloaded using the ```data_download.py``` script within the ```src``` folder
